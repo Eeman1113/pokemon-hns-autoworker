@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Auto Worker · patch your own Pokémon Heart &amp; Soul</title>
+<meta name="description" content="Adds an Auto Worker option to Pokémon Heart &amp; Soul. Patch your own Emerald ROM in the browser — nothing is uploaded.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Space+Grotesk:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'><rect width='12' height='12' fill='%23141033'/><rect x='2' y='2' width='8' height='6' fill='%233987e5'/><rect x='3' y='8' width='6' height='2' fill='%23e9e6ff'/></svg>">
+</head>
+<body>
+<main class="wrap">
+
+  <header class="hero">
+    <h1>Auto&nbsp;Worker</h1>
+    <p class="sub">An autoplay option for <strong>Pokémon Heart &amp; Soul</strong>, in the
+      start menu under <code>SAVE</code>. Hand it the controls for the grinding;
+      press <kbd>B</kbd> and you have them back.</p>
+  </header>
+
+  <section class="win">
+    <h2>Patch your copy</h2>
+    <p class="small">
+      Drop in <strong>your own</strong> Pokémon Emerald (USA, Europe) ROM. It is read in
+      your browser and never leaves this machine — there is no upload. No game files are
+      distributed here, only the patch.
+    </p>
+
+    <label class="drop" id="drop">
+      <input type="file" id="file" accept=".gba,.bin" hidden>
+      <span id="dropText">Choose your Emerald ROM, or drop it here</span>
+    </label>
+
+    <div id="status" class="status" hidden></div>
+    <progress id="bar" max="1" value="0" hidden></progress>
+
+    <a id="download" class="btn" hidden download="Pokemon HnS AutoWorker.gba">Download patched ROM</a>
+
+    <details class="small">
+      <summary>What exactly do I need?</summary>
+      <table>
+        <tr><th>File</th><td>Pokémon Emerald (USA, Europe)</td></tr>
+        <tr><th>Size</th><td>16,777,216 bytes (16 MiB)</td></tr>
+        <tr><th>CRC32</th><td><code>1f1c08fb</code></td></tr>
+        <tr><th>Header</th><td><code>BPEE</code>, revision 0</td></tr>
+      </table>
+      <p>The patcher checks the CRC32 before doing anything. A different region, a trimmed
+         dump or an already-patched ROM is rejected up front rather than producing a
+         broken file you discover hours later.</p>
+    </details>
+  </section>
+
+  <section class="win">
+    <h2>What it does</h2>
+    <dl>
+      <dt>Plays the battles properly</dt>
+      <dd>Battles are not scripted. The game already ships an AI capable of driving a
+          player-side battler, so Auto Worker points it at your side — real damage
+          calculation, switching, item use. It is the same code that runs your opponents.</dd>
+
+      <dt>Knows where it is in the story</dt>
+      <dd>The whole route is pre-declared as an ordered table of objectives. On hand-off the
+          agent reads your save file's own flags to find the furthest point it can prove you
+          have reached, and resumes there. A fresh file and a nine-hour save take the same
+          code path.</dd>
+
+      <dt>Gives control back instantly</dt>
+      <dd>The agent writes only the remapped key fields and reads your input only from the
+          raw hardware register, so a real <kbd>B</kbd> press can never be confused with one
+          of its own. The <kbd>A</kbd>+<kbd>B</kbd>+<kbd>START</kbd>+<kbd>SELECT</kbd> soft
+          reset also keeps working, because raw keys are never touched.</dd>
+
+      <dt>Cannot touch your save</dt>
+      <dd>The agent is structurally forbidden from saving. That one rule turns every
+          possible bug from "ruined save file" into "reset and lose the session".</dd>
+    </dl>
+  </section>
+
+  <section class="win warn">
+    <h2>Honest status</h2>
+    <p class="small">This is an early build. The menu entry, the battle hand-off, the input
+      layer and the stage detection are implemented and compile into the ROM. The
+      cross-map router is built from the game's own 4,451 warp connections but is
+      <strong>not yet wired to the movement layer</strong>, and the objective table covers
+      30 main-line steps of which 21 were derived from the game's scripts, 7 inferred and
+      2 unknown.</p>
+    <p class="small">So: auto-battling and hand-off work. Walking itself across Johto does
+      not yet. Puzzle sections — Ice Path, the Rocket HQ password — are marked hand-back
+      and always will be. Back up your save before trying it.</p>
+  </section>
+
+  <footer>
+    <p>Built on <a href="https://github.com/PokemonHnS-Development/pokehns-expansion">pokehns-expansion</a>
+       by the Pokémon Heart &amp; Soul team, itself built on
+       <a href="https://github.com/rh-hideout/pokeemerald-expansion">pokeemerald-expansion</a>.
+       All credit for the game itself belongs to them. This project adds one menu option.</p>
+    <p>No copyrighted game data is distributed here. You supply your own ROM.</p>
+  </footer>
+</main>
+
+<script src="patcher.js"></script>
+<script>
+const $ = s => document.querySelector(s);
+const drop = $("#drop"), fileInput = $("#file"), statusEl = $("#status"),
+      bar = $("#bar"), dl = $("#download"), dropText = $("#dropText");
+const PATCH_URL = "autoworker.ups";
+
+function say(msg, kind) {
+  statusEl.hidden = false;
+  statusEl.className = "status " + (kind || "");
+  statusEl.textContent = msg;
+}
+
+let patchCache = null;
+async function getPatch() {
+  if (patchCache) return patchCache;
+  say("Fetching the patch (about 32 MB, once)…");
+  const res = await fetch(PATCH_URL);
+  if (!res.ok) throw new Error(`Could not fetch the patch file (HTTP ${res.status}).`);
+  patchCache = new Uint8Array(await res.arrayBuffer());
+  return patchCache;
+}
+
+async function handle(file) {
+  dl.hidden = true;
+  try {
+    dropText.textContent = file.name;
+    say("Reading your ROM…");
+    const rom = new Uint8Array(await file.arrayBuffer());
+    const patch = await getPatch();
+
+    say("Patching…");
+    bar.hidden = false; bar.value = 0;
+    await new Promise(r => setTimeout(r, 16));   // let the browser paint
+
+    const out = applyUps(rom, patch, p => { bar.value = p; });
+    bar.hidden = true;
+
+    const url = URL.createObjectURL(new Blob([out], {type: "application/octet-stream"}));
+    dl.href = url;
+    dl.hidden = false;
+    say(`Done — ${out.length.toLocaleString()} bytes, checksums verified.`, "ok");
+  } catch (e) {
+    bar.hidden = true;
+    say(e.message, "err");
+  }
+}
+
+fileInput.addEventListener("change", e => e.target.files[0] && handle(e.target.files[0]));
+["dragenter","dragover"].forEach(t => drop.addEventListener(t, e => {
+  e.preventDefault(); drop.classList.add("over");
+}));
+["dragleave","drop"].forEach(t => drop.addEventListener(t, e => {
+  e.preventDefault(); drop.classList.remove("over");
+}));
+drop.addEventListener("drop", e => {
+  const f = e.dataTransfer.files[0];
+  if (f) handle(f);
+});
+</script>
+</body>
+</html>

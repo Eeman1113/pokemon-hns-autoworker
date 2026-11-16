@@ -1,0 +1,68 @@
+{
+ "ITEM_HM_SURF": [
+  [
+   "FLAG_RECEIVED_HM_SURF",
+   "EcruteakCity_Theater_hns"
+  ]
+ ],
+ "ITEM_BICYCLE": [
+  [
+   "FLAG_RECEIVED_BIKE",
+   "GoldenrodCity_BikeShop_hns"
+  ]
+ ],
+ "ITEM_SQUIRT_BOTTLE": [
+  [
+   "FLAG_RECEIVED_SQUIRTBOTTLE",
+   "GoldenrodCity_FlowerShop_hns"
+  ]
+ ],
+ "ITEM_HM_CUT": [
+  [
+   "FLAG_RECEIVED_HM_CUT",
+   "IlexForest_hns"
+  ]
+ ],
+ "ITEM_POTION": [
+  [
+   "FLAG_RECEIVED_FIRST_POTION",
+   "NewBarkTown_Lab_hns"
+  ]
+ ],
+ "ITEM_POKE_BALL": [
+  [
+   "FLAG_RECEIVED_FIRST_BALLS",
+   "NewBarkTown_Lab_hns"
+  ]
+ ],
+ "ITEM_HM_STRENGTH": [
+  [
+   "FLAG_RECEIVED_HM_STRENGTH",
+   "OlivineCity_Cafe_hns"
+  ]
+ ],
+ "ITEM_HM_ROCK_SMASH": [
+  [
+   "FLAG_RECEIVED_HM_ROCK_SMASH",
+   "Route36_hns"
+  ]
+ ],
+ "ITEM_TM_FACADE": [
+  [
+   "FLAG_RECEIVED_TM_TORMENT",
+   "SlateportCity_BattleTentLobby_hns"
+  ]
+ ],
+ "ITEM_HM_FLASH": [
+  [
+   "FLAG_RECEIVED_HM_FLASH",
+   "SproutTower_3F_hns"
+  ]
+ ],
+ "ITEM_TM_SAFEGUARD": [
+  [
+   "FLAG_RECEIVED_TM_ATTRACT",
+   "VerdanturfTown_BattleTentLobby_hns"
+  ]
+ ]
+}

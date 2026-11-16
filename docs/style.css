@@ -1,0 +1,71 @@
+:root {
+  --ground:#0b0820; --panel:#141033; --panel2:#1b1545; --edge:#e9e6ff;
+  --ink:#f3f1ff; --ink2:#a9a3d8; --ink3:#776fae;
+  --blue:#3987e5; --rust:#d95926; --jade:#199e70; --red:#e66767;
+  --px:4px; --display:"Press Start 2P",ui-monospace,monospace;
+  --body:"Space Grotesk",system-ui,sans-serif;
+}
+* { box-sizing:border-box; }
+/* `.btn { display:inline-block }` outranks the UA's `[hidden] { display:none }`,
+   so the download button rendered before there was anything to download. */
+[hidden] { display:none !important; }
+body {
+  margin:0; background:var(--ground); color:var(--ink);
+  font-family:var(--body); font-size:16px; line-height:1.65;
+  background-image:repeating-linear-gradient(0deg,rgba(255,255,255,.022) 0 1px,transparent 1px 3px);
+}
+.wrap { width:min(760px,92vw); margin:0 auto; padding:48px 0 80px; }
+h1 { font-family:var(--display); font-size:clamp(18px,4.4vw,30px); line-height:1.5; margin:0 0 18px; }
+h2 { font-family:var(--display); font-size:13px; line-height:1.8; margin:0 0 14px; color:var(--ink); }
+p { margin:0 0 14px; max-width:68ch; }
+.small { font-size:14px; color:var(--ink2); }
+code, kbd { font-family:ui-monospace,monospace; background:var(--panel2); padding:2px 6px; font-size:.9em; }
+a { color:var(--blue); text-underline-offset:3px; }
+a:hover { color:var(--ink); }
+:focus-visible { outline:3px solid var(--rust); outline-offset:3px; }
+
+.hero { margin-bottom:34px; }
+.hero .sub { color:var(--ink2); }
+
+.win {
+  background:var(--panel); border:var(--px) solid var(--edge); padding:26px 24px;
+  margin-bottom:22px;
+  clip-path:polygon(8px 0,calc(100% - 8px) 0,100% 8px,100% calc(100% - 8px),
+    calc(100% - 8px) 100%,8px 100%,0 calc(100% - 8px),0 8px);
+}
+.win.warn { border-color:var(--rust); }
+
+.drop {
+  display:block; border:var(--px) dashed var(--ink3); background:var(--panel2);
+  padding:34px 20px; text-align:center; cursor:pointer; color:var(--ink2);
+  font-size:14px; margin:18px 0;
+}
+.drop:hover, .drop.over { border-color:var(--blue); color:var(--ink); }
+
+.status { font-size:14px; padding:12px 14px; background:var(--panel2); margin-bottom:14px; white-space:pre-wrap; }
+.status.ok  { color:#7ee2b8; border-left:var(--px) solid var(--jade); }
+.status.err { color:#ffb4b4; border-left:var(--px) solid var(--red); }
+
+progress { width:100%; height:14px; margin-bottom:14px; }
+
+.btn {
+  display:inline-block; font-family:var(--display); font-size:11px; padding:14px 18px;
+  background:var(--blue); color:#04030f; text-decoration:none; border:var(--px) solid var(--edge);
+}
+.btn:hover { background:var(--edge); color:#04030f; }
+
+dl { margin:0; }
+dt { font-weight:500; margin-top:16px; color:var(--ink); }
+dd { margin:4px 0 0; color:var(--ink2); font-size:14.5px; max-width:68ch; }
+
+table { border-collapse:collapse; margin:10px 0; font-size:14px; }
+th, td { text-align:left; padding:6px 14px 6px 0; border-bottom:2px solid var(--panel2); }
+th { color:var(--ink2); font-weight:500; }
+
+details { margin-top:18px; }
+summary { cursor:pointer; color:var(--ink2); }
+summary:hover { color:var(--ink); }
+
+footer { margin-top:40px; color:var(--ink3); font-size:13px; }
+footer a { color:var(--ink2); }
+@media (prefers-reduced-motion:reduce) { * { transition:none !important; } }

@@ -1,0 +1,57 @@
+#!/usr/bin/env python3
+"""Emit quests.h / quests.c from the derived data. Ordering is the HGSS spine;
+targets and completion tests come from script analysis (see derive_quests.py)."""
+D,I,U = "DERIVED","INFERRED","UNKNOWN"
+# name, map const, x, y, action, precondition flag/var, completion flag, confidence, note
+Q=[
+("Talk to Mom","MAP_NEW_BARK_TOWN_PLAYERS_HOUSE_1F_HNS",2,2,"TALK_TO",None,"VAR_NEWBARK_TOWN_STATE>=5",I,"setvar derived; threshold inferred"),
+("Get starter from Elm","MAP_NEW_BARK_TOWN_LAB_HNS",6,3,"TALK_TO",None,"FLAG_SYS_POKEMON_GET",D,"setflag at Lab scripts.inc:244"),
+("Cherrygrove tutorial","MAP_CHERRYGROVE_CITY_HNS",57,8,"TALK_TO","FLAG_SYS_POKEMON_GET","VAR_CHERRYGROVE_CITY_STATE>=1",D,"setvar derived"),
+("Sprout Tower: HM Flash","MAP_SPROUT_TOWER_3F_HNS",11,3,"TALK_TO","FLAG_SYS_POKEMON_GET","FLAG_RECEIVED_HM_FLASH",D,"SproutTower_3F scripts.inc:112"),
+("Gym 1 - Falkner","MAP_VIOLET_CITY_GYM_HNS",9,4,"FIGHT_TRAINER","FLAG_RECEIVED_HM_FLASH","FLAG_BADGE01_GET",D,"badge flag derived"),
+("Ilex Forest: HM Cut","MAP_ILEX_FOREST_HNS",0,0,"TALK_TO","FLAG_BADGE01_GET","FLAG_RECEIVED_HM_CUT",I,"flag derived; coords UNKNOWN"),
+("Gym 2 - Bugsy","MAP_AZALEA_TOWN_GYM_HNS",11,6,"FIGHT_TRAINER","FLAG_RECEIVED_HM_CUT","FLAG_BADGE02_GET",D,None),
+("Gym 3 - Whitney","MAP_GOLDENROD_CITY_GYM_HNS",15,8,"FIGHT_TRAINER","FLAG_BADGE02_GET","FLAG_BADGE03_GET",D,None),
+("Ecruteak Theater: HM Surf","MAP_ECRUTEAK_CITY_THEATER_HNS",13,11,"TALK_TO","FLAG_BADGE03_GET","FLAG_RECEIVED_HM_SURF",D,"Theater scripts.inc:269"),
+("Gym 4 - Morty","MAP_ECRUTEAK_CITY_GYM_HNS",4,4,"FIGHT_TRAINER","FLAG_BADGE03_GET","FLAG_BADGE04_GET",D,None),
+("Olivine Cafe: HM Strength","MAP_OLIVINE_CITY_CAFE_HNS",4,3,"TALK_TO","FLAG_RECEIVED_HM_SURF","FLAG_RECEIVED_HM_STRENGTH",D,None),
+("Cianwood Shop: Secret Potion","MAP_CIANWOOD_SHOP_HNS",8,7,"TALK_TO","FLAG_RECEIVED_HM_SURF",None,I,"no companion flag found"),
+("Gym 5 - Chuck","MAP_CIANWOOD_GYM_HNS",10,2,"FIGHT_TRAINER","FLAG_RECEIVED_HM_SURF","FLAG_BADGE05_GET",D,None),
+("Cianwood: HM Fly","MAP_CIANWOOD_CITY_HNS",18,47,"TALK_TO","FLAG_BADGE05_GET",None,I,"no companion flag found"),
+("Gym 6 - Jasmine","MAP_OLIVINE_CITY_GYM_HNS",8,4,"FIGHT_TRAINER","FLAG_BADGE05_GET","FLAG_BADGE06_GET",D,None),
+("Route 36: HM Rock Smash","MAP_ROUTE36_HNS",46,20,"TALK_TO","FLAG_BADGE02_GET","FLAG_RECEIVED_HM_ROCK_SMASH",D,None),
+("Lake of Rage: Red Scale","MAP_LAKE_OF_RAGE_HNS",32,28,"FIGHT_TRAINER","FLAG_BADGE06_GET",None,I,"Gyarados encounter"),
+("Goldenrod Underground: Card Key","MAP_GOLDENROD_CITY_UNDERGROUND_STORAGE_HNS",13,8,"TALK_TO","FLAG_BADGE06_GET",None,I,None),
+("ROCKET HQ sequence","MAP_GOLDENROD_CITY_RADIO_TOWER_5F_HNS",11,9,"HAND_BACK","FLAG_BADGE06_GET",None,U,"password/trapdoor - cannot derive"),
+("Gym 7 - Pryce","MAP_MAHOGANY_TOWN_GYM_HNS",12,4,"FIGHT_TRAINER","FLAG_BADGE06_GET","FLAG_BADGE07_GET",D,None),
+("ICE PATH sliding puzzle","MAP_ICE_PATH_1F_HNS",0,0,"HAND_BACK","FLAG_BADGE07_GET",None,U,"sliding-boulder puzzle"),
+("Gym 8 - Clair","MAP_DRAGONS_DEN_SHRINE_HNS",0,0,"FIGHT_TRAINER","FLAG_BADGE07_GET","FLAG_BADGE08_GET",I,"flag derived; coords UNKNOWN (map script)"),
+("Gym 9 - Brock (Kanto)","MAP_PEWTER_CITY_GYM_HNS",6,5,"FIGHT_TRAINER","FLAG_BADGE08_GET","FLAG_BADGE09_GET",D,"Kanto begins"),
+("Gym 10 - Misty","MAP_CERULEAN_CITY_GYM_HNS",7,6,"FIGHT_TRAINER","FLAG_BADGE09_GET","FLAG_BADGE10_GET",D,None),
+("Gym 11 - Surge","MAP_VERMILION_CITY_GYM_HNS",5,2,"FIGHT_TRAINER","FLAG_BADGE10_GET","FLAG_BADGE11_GET",D,None),
+("Gym 12 - Erika","MAP_CELADON_CITY_GYM_HNS",6,4,"FIGHT_TRAINER","FLAG_BADGE11_GET","FLAG_BADGE12_GET",D,None),
+("Gym 13 - Sabrina","MAP_SAFFRON_CITY_GYM_HNS",14,11,"FIGHT_TRAINER","FLAG_BADGE12_GET","FLAG_BADGE13_GET",D,None),
+("Gym 14 - Janine","MAP_FUCHSIA_CITY_GYM_HNS",2,11,"FIGHT_TRAINER","FLAG_BADGE13_GET","FLAG_BADGE14_GET",D,None),
+("Gym 15 - Blaine","MAP_SEAFOAM_ISLANDS_GYM_HNS",18,10,"FIGHT_TRAINER","FLAG_BADGE14_GET","FLAG_BADGE15_GET",D,None),
+("Gym 16 - Blue","MAP_VIRIDIAN_CITY_GYM_HNS",5,2,"FIGHT_TRAINER","FLAG_BADGE15_GET","FLAG_BADGE16_GET",D,None),
+]
+h=['#ifndef GUARD_AW_QUESTS_H','#define GUARD_AW_QUESTS_H','','#include "global.h"','',
+'enum AwAction { AW_TALK_TO, AW_WALK_TO, AW_USE_ITEM, AW_FIGHT_TRAINER, AW_TAKE_ITEM, AW_WAIT_FOR_SCRIPT, AW_HAND_BACK };',
+'enum AwConfidence { AW_DERIVED, AW_INFERRED, AW_UNKNOWN };','',
+'// 12 bytes/entry, const -> ROM. EWRAM holds only the u8 cursor.',
+'struct AwObjective {','    u16 mapId;','    u8  x, y;','    u16 preFlag;   // 0 = none','    u16 doneFlag;  // 0 = none, agent must use a var test',
+'    u8  action;    // enum AwAction','    u8  confidence;// enum AwConfidence','    const u8 *name;','};','',
+f'#define AW_NUM_OBJECTIVES {len(Q)}','extern const struct AwObjective gAwObjectives[AW_NUM_OBJECTIVES];','','#endif','']
+c=['#include "global.h"','#include "aw_quests.h"','#include "constants/flags.h"','#include "constants/map_groups.h"','',
+   '// GENERATED by gen/quest/gen_table.py - do not hand-edit.','const struct AwObjective gAwObjectives[AW_NUM_OBJECTIVES] =','{']
+for i,(n,mp,x,y,a,pre,done,conf,note) in enumerate(Q):
+    pf = pre if (pre and pre.startswith("FLAG_")) else "0"
+    df = done if (done and done.startswith("FLAG_")) else "0"
+    c.append(f'    [{i}] = {{ .mapId = {mp}, .x = {x}, .y = {y}, .preFlag = {pf}, .doneFlag = {df},')
+    c.append(f'          .action = AW_{a}, .confidence = AW_{conf}, .name = (const u8 *)"{n}" }},'
+             + (f'  // {note}' if note else ''))
+c+=['};','']
+open("quests.h","w").write("\n".join(h)); open("quests.c","w").write("\n".join(c))
+nd=sum(1 for q in Q if q[7]==D); ni=sum(1 for q in Q if q[7]==I); nu=sum(1 for q in Q if q[7]==U)
+print(f"objectives={len(Q)}  DERIVED={nd} INFERRED={ni} UNKNOWN={nu}")
+print(f"table bytes = {len(Q)}*12 = {len(Q)*12} (ROM, const)")

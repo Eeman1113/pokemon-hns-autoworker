@@ -1,0 +1,14 @@
+# Never commit game data. Not the base ROM, not a patched ROM, not a save.
+*.gba
+*.gb
+*.gbc
+*.sav
+*.srm
+*.state
+*.elf
+*.map
+__pycache__/
+*.pyc
+harness/states/
+harness/shots/
+build/

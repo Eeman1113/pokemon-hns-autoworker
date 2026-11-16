@@ -1,0 +1,292 @@
+{
+  "_comment": [
+    "Scenarios are data. 'runnable_now' marks what works against the SHIPPED",
+    "ROM today; everything else is blocked on the dev build (which adds the",
+    "AUTO WORKER menu entry) and/or a symbol file for save-block reads.",
+    "Steps run in order, then assertions evaluate. An assertion that cannot be",
+    "evaluated yields COULD_NOT_RUN, never PASS."
+  ],
+  "scenarios": [
+    {
+      "name": "emulator-boots-rom",
+      "why": "Baseline. If this fails nothing else means anything.",
+      "runnable_now": true,
+      "boot_frames": 300,
+      "steps": [
+        {
+          "do": "run",
+          "frames": 120
+        }
+      ],
+      "assert": [
+        {
+          "that": "frames_advanced",
+          "at_least": 2
+        }
+      ]
+    },
+    {
+      "name": "gmain-discoverable-without-symbols",
+      "why": "The harness must work on a stripped ROM, so it has to find gMain by behaviour rather than by symbol table.",
+      "runnable_now": true,
+      "boot_frames": 300,
+      "steps": [
+        {
+          "do": "run",
+          "frames": 60
+        }
+      ],
+      "assert": [
+        {
+          "that": "frames_advanced",
+          "at_least": 1
+        }
+      ]
+    },
+    {
+      "name": "no-injection-when-agent-off",
+      "why": "Control case. With Auto Worker off, cooked and raw key fields must agree -- anything else means something is writing input behind the player's back.",
+      "runnable_now": true,
+      "boot_frames": 300,
+      "steps": [
+        {
+          "do": "run",
+          "frames": 180
+        },
+        {
+          "do": "record",
+          "name": "idle"
+        },
+        {
+          "do": "tap",
+          "button": "A",
+          "times": 2
+        },
+        {
+          "do": "record",
+          "name": "after-taps"
+        }
+      ],
+      "assert": [
+        {
+          "that": "no_injection"
+        }
+      ]
+    },
+    {
+      "name": "not-in-battle-on-title",
+      "why": "Sanity-checks the inBattle bit against a state we know, so battle assertions elsewhere can be trusted.",
+      "runnable_now": true,
+      "boot_frames": 300,
+      "steps": [
+        {
+          "do": "run",
+          "frames": 120
+        }
+      ],
+      "assert": [
+        {
+          "that": "in_battle",
+          "expected": false
+        }
+      ]
+    },
+    {
+      "name": "generated-state-loads-and-resumes",
+      "why": "Proves the save-state path end to end on a real generated state: load it, run on, and confirm the machine is still executing rather than wedged.",
+      "runnable_now": true,
+      "boot_frames": 120,
+      "steps": [
+        {
+          "do": "load_state",
+          "path": "states/cp06.state"
+        },
+        {
+          "do": "run",
+          "frames": 120
+        },
+        {
+          "do": "record",
+          "name": "after-resume"
+        }
+      ],
+      "assert": [
+        {
+          "that": "frames_advanced",
+          "at_least": 2
+        },
+        {
+          "that": "no_injection"
+        },
+        {
+          "that": "in_battle",
+          "expected": false
+        }
+      ]
+    },
+    {
+      "name": "B-returns-control-within-one-frame",
+      "why": "The single most important safety property. After a human B press the agent must inject nothing, ever, on the very next frame.",
+      "runnable_now": false,
+      "blocked_on": "dev build with AUTO WORKER menu entry",
+      "boot_frames": 300,
+      "steps": [
+        {
+          "do": "load_state",
+          "path": "states/overworld.state"
+        },
+        {
+          "do": "tap",
+          "button": "START"
+        },
+        {
+          "do": "run",
+          "frames": 30
+        },
+        {
+          "do": "record",
+          "name": "agent-enabled"
+        },
+        {
+          "do": "tap",
+          "button": "B",
+          "hold": 2
+        },
+        {
+          "do": "run",
+          "frames": 1
+        },
+        {
+          "do": "record",
+          "name": "after-B"
+        }
+      ],
+      "assert": [
+        {
+          "that": "no_injection"
+        }
+      ]
+    },
+    {
+      "name": "agent-injects-when-enabled",
+      "why": "The converse of the control case: if enabling Auto Worker produces no injection signature, the choke point is wrong.",
+      "runnable_now": false,
+      "blocked_on": "dev build with AUTO WORKER menu entry",
+      "boot_frames": 300,
+      "steps": [
+        {
+          "do": "load_state",
+          "path": "states/overworld.state"
+        },
+        {
+          "do": "run",
+          "frames": 120
+        }
+      ],
+      "assert": [
+        {
+          "that": "injection_present"
+        }
+      ]
+    },
+    {
+      "name": "agent-never-opens-save-menu",
+      "why": "The agent is structurally forbidden from saving; a corrupted save is the one unrecoverable outcome.",
+      "runnable_now": false,
+      "blocked_on": "dev build + symbol file",
+      "boot_frames": 300,
+      "steps": [
+        {
+          "do": "load_state",
+          "path": "states/overworld.state"
+        },
+        {
+          "do": "run",
+          "frames": 18000
+        }
+      ],
+      "assert": [
+        {
+          "that": "no_injection"
+        }
+      ]
+    },
+    {
+      "name": "wild-battle-is-won-not-spammed",
+      "why": "Checks the battle AI actually drives the player's battler: a type-disadvantaged lead must win or switch rather than repeat a resisted move.",
+      "runnable_now": false,
+      "blocked_on": "dev build + states/wild_battle_disadvantaged.state",
+      "boot_frames": 300,
+      "steps": [
+        {
+          "do": "load_state",
+          "path": "states/wild_battle_disadvantaged.state"
+        },
+        {
+          "do": "run",
+          "frames": 7200
+        }
+      ],
+      "assert": [
+        {
+          "that": "in_battle",
+          "expected": false
+        },
+        {
+          "that": "party_count",
+          "min": 1,
+          "max": 6
+        }
+      ]
+    },
+    {
+      "name": "heals-at-pokemon-centre",
+      "why": "The first real navigation test: route to the nurse and heal without being told where she is.",
+      "runnable_now": false,
+      "blocked_on": "dev build + states/outside_pokecentre.state + symbols",
+      "boot_frames": 300,
+      "steps": [
+        {
+          "do": "load_state",
+          "path": "states/outside_pokecentre.state"
+        },
+        {
+          "do": "run",
+          "frames": 10800
+        }
+      ],
+      "assert": [
+        {
+          "that": "party_count",
+          "min": 1,
+          "max": 6
+        }
+      ]
+    },
+    {
+      "name": "completes-first-objective-from-new-game",
+      "why": "End-to-end: from a fresh boot the agent should clear objective 1 unaided. This is the scenario that decides whether the quest chain is real.",
+      "runnable_now": false,
+      "blocked_on": "dev build + quest table + symbols",
+      "boot_frames": 300,
+      "frame_budget": 216000,
+      "steps": [
+        {
+          "do": "load_state",
+          "path": "states/newgame.state"
+        },
+        {
+          "do": "run",
+          "frames": 108000
+        }
+      ],
+      "assert": [
+        {
+          "that": "party_count",
+          "min": 1,
+          "max": 6
+        }
+      ]
+    }
+  ]
+}

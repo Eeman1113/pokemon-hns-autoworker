@@ -1,0 +1,213 @@
+diff --git a/src/battle_ai_main.c b/src/battle_ai_main.c
+index 2dbf728d..83f50ff1 100644
+--- a/src/battle_ai_main.c
++++ b/src/battle_ai_main.c
+@@ -1,4 +1,5 @@
+ #include "global.h"
++#include "auto_worker.h"
+ #include "main.h"
+ #include "malloc.h"
+ #include "battle.h"
+@@ -262,7 +263,7 @@ static u64 GetAiFlags(u16 trainerId, enum BattlerId battler)
+ 
+ void BattleAI_SetupFlags(void)
+ {
+-    if (IsAiVsAiBattle())
++    if (IsAiVsAiBattle() || AutoWorker_IsAutoBattling())
+         gAiThinkingStruct->aiFlags[B_BATTLER_0] = GetAiFlags(gPartnerTrainerId, B_BATTLER_0);
+     else
+         gAiThinkingStruct->aiFlags[B_BATTLER_0] = 0; // player has no AI
+@@ -304,7 +305,7 @@ void BattleAI_SetupFlags(void)
+     {
+         gAiThinkingStruct->aiFlags[B_BATTLER_2] = GetAiFlags(gPartnerTrainerId, B_BATTLER_1);
+     }
+-    else if (IsDoubleBattle() && IsAiVsAiBattle())
++    else if (IsDoubleBattle() && (IsAiVsAiBattle() || AutoWorker_IsAutoBattling()))
+     {
+         gAiThinkingStruct->aiFlags[B_BATTLER_2] = gAiThinkingStruct->aiFlags[B_BATTLER_0];
+     }
+diff --git a/src/battle_controller_player_partner.c b/src/battle_controller_player_partner.c
+index e3c7b9eb..46f16909 100644
+--- a/src/battle_controller_player_partner.c
++++ b/src/battle_controller_player_partner.c
+@@ -1,4 +1,5 @@
+ #include "global.h"
++#include "auto_worker.h"
+ #include "battle.h"
+ #include "battle_ai_main.h"
+ #include "battle_ai_switch.h"
+@@ -233,6 +234,15 @@ static void PlayerPartnerHandleDrawTrainerPic(enum BattlerId battler)
+         xPos = 90;
+         yPos = (8 - gTrainerBacksprites[trainerPicId].coordinates.size) * 4 + 80;
+     }
++    else if (AutoWorker_IsAutoBattling())
++    {
++        // Driving the player's own battler, so draw the player -- not a
++        // partner trainer, which is what this controller normally assumes.
++        trainerPicId = gSaveBlock2Ptr->playerGender == FEMALE
++                     ? TRAINER_BACK_PIC_PLAYER_FEMALE : TRAINER_BACK_PIC_PLAYER_MALE;
++        xPos = 80;
++        yPos = (8 - gTrainerBacksprites[trainerPicId].coordinates.size) * 4 + 80;
++    }
+     else if (IsAiVsAiBattle())
+     {
+         trainerPicId = GetTrainerPicFromId(gPartnerTrainerId);
+@@ -322,7 +332,7 @@ static void PlayerPartnerHandleChoosePokemon(enum BattlerId battler)
+         chosenMonId = GetMostSuitableMonToSwitchInto(battler, SWITCH_AFTER_KO);
+         if (chosenMonId == PARTY_SIZE || !IsValidForBattle(&gPlayerParty[chosenMonId])) // just switch to the next mon
+         {
+-            s32 firstId = (IsAiVsAiBattle()) ? 0 : (PARTY_SIZE / 2);
++            s32 firstId = (IsAiVsAiBattle() || AutoWorker_IsAutoBattling()) ? 0 : (PARTY_SIZE / 2);
+             enum BattlerId battler1 = GetBattlerAtPosition(B_POSITION_PLAYER_LEFT);
+             enum BattlerId battler2 = IsDoubleBattle() ? GetBattlerAtPosition(B_POSITION_PLAYER_RIGHT) : battler1;
+ 
+@@ -358,6 +368,10 @@ static void PlayerPartnerHandleIntroTrainerBallThrow(enum BattlerId battler)
+ 
+     if (gPartnerTrainerId > TRAINER_PARTNER(PARTNER_NONE))
+         trainerPal = gTrainerBacksprites[gBattlePartners[difficulty][gPartnerTrainerId - TRAINER_PARTNER(PARTNER_NONE)].trainerBackPic].palette.data;
++    else if (AutoWorker_IsAutoBattling())
++        trainerPal = gTrainerBacksprites[(gSaveBlock2Ptr->playerGender == FEMALE
++                   ? TRAINER_BACK_PIC_PLAYER_FEMALE : TRAINER_BACK_PIC_PLAYER_MALE)
++                   - TRAINER_PIC_FRONT_COUNT].palette.data;
+     else if (IsAiVsAiBattle())
+         trainerPal = gTrainerSprites[GetTrainerBackPicFromId(gPartnerTrainerId)].palette.data;
+     else
+diff --git a/src/battle_controllers.c b/src/battle_controllers.c
+index 2738a91b..9570000b 100644
+--- a/src/battle_controllers.c
++++ b/src/battle_controllers.c
+@@ -1,4 +1,5 @@
+ #include "global.h"
++#include "auto_worker.h"
+ #include "battle.h"
+ #include "battle_ai_main.h"
+ #include "battle_ai_util.h"
+@@ -197,6 +198,11 @@ static void InitBtlControllersInternal(void)
+     bool32 isMulti = (gBattleTypeFlags & BATTLE_TYPE_MULTI);
+     bool32 isInGamePartner = (gBattleTypeFlags & BATTLE_TYPE_INGAME_PARTNER);
+     bool32 isAIvsAI = IsAiVsAiBattle();
++    // Latched here, once, because the controller assignment below is the only
++    // point at which the decision can be taken; toggling mid-battle must not
++    // reassign controllers underneath a battle already in progress.
++    AutoWorker_LatchForBattle();
++    bool32 autoPlayer = AutoWorker_IsAutoBattling();
+ 
+     if (!isLink || isMaster)
+         gBattleMainFunc = BeginBattleIntro;
+@@ -261,7 +267,7 @@ static void InitBtlControllersInternal(void)
+                 gBattlerControllerFuncs[GetBattlerPosition(B_BATTLER_0)] = IS_FRLG ? SetControllerToOakOrOldMan : SetControllerToWally;
+             else if (IS_FRLG && (gBattleTypeFlags & BATTLE_TYPE_FIRST_BATTLE))
+                 gBattlerControllerFuncs[gBattlerPositions[B_BATTLER_0]] = SetControllerToOakOrOldMan;
+-            else if (isAIvsAI)
++            else if (isAIvsAI || autoPlayer)
+                 gBattlerControllerFuncs[GetBattlerPosition(B_BATTLER_0)] = SetControllerToPlayerPartner;
+             else
+                 gBattlerControllerFuncs[GetBattlerPosition(B_BATTLER_0)] = SetControllerToPlayer;
+@@ -291,7 +297,7 @@ static void InitBtlControllersInternal(void)
+                     gBattlerControllerFuncs[GetBattlerPosition(B_BATTLER_2)] = SetControllerToRecordedPartner;
+             }
+             else if ((isInGamePartner && !isRecorded)
+-                    || isAIvsAI)
++                    || isAIvsAI || autoPlayer)
+             {
+                 gBattlerControllerFuncs[GetBattlerPosition(B_BATTLER_2)] = SetControllerToPlayerPartner;
+             }
+diff --git a/src/main.c b/src/main.c
+index 6b4434d6..827ac238 100644
+--- a/src/main.c
++++ b/src/main.c
+@@ -1,4 +1,5 @@
+ #include "global.h"
++#include "auto_worker.h"
+ #include "crt0.h"
+ #include "malloc.h"
+ #include "link.h"
+@@ -137,6 +138,12 @@ void AgbMainLoop(void)
+     {
+         ReadKeys();
+ 
++        // Auto Worker writes only the cooked key fields, and must run after
++        // ReadKeys() and before any callback so that every consumer -- field,
++        // menu, battle, dialogue -- sees identical input. Anywhere else and
++        // some consumers see synthetic keys while others do not.
++        AutoWorker_Tick();
++
+         if (gSoftResetDisabled == FALSE
+          && JOY_HELD_RAW(A_BUTTON)
+          && JOY_HELD_RAW(B_START_SELECT) == B_START_SELECT)
+diff --git a/src/start_menu.c b/src/start_menu.c
+index 144c2d2a..f989b317 100644
+--- a/src/start_menu.c
++++ b/src/start_menu.c
+@@ -1,4 +1,5 @@
+ #include "global.h"
++#include "auto_worker.h"
+ #include "config/save.h"
+ #include "battle_pike.h"
+ #include "battle_pyramid.h"
+@@ -65,6 +66,7 @@ enum
+     MENU_ACTION_SAVE,
+     MENU_ACTION_OPTION,
+     MENU_ACTION_EXIT,
++    MENU_ACTION_AUTO_WORKER,
+     MENU_ACTION_RETIRE_SAFARI,
+     MENU_ACTION_PLAYER_LINK,
+     MENU_ACTION_REST_FRONTIER,
+@@ -110,6 +112,7 @@ static bool8 StartMenuPlayerNameCallback(void);
+ static bool8 StartMenuSaveCallback(void);
+ static bool8 StartMenuOptionCallback(void);
+ static bool8 StartMenuExitCallback(void);
++static bool8 StartMenuAutoWorkerCallback(void);
+ static bool8 StartMenuSafariZoneRetireCallback(void);
+ static bool8 StartMenuLinkModePlayerNameCallback(void);
+ static bool8 StartMenuBattlePyramidRetireCallback(void);
+@@ -204,6 +207,7 @@ static const struct WindowTemplate sWindowTemplate_PyramidPeak = {
+ };
+ 
+ static const u8 sText_MenuDebug[] = _("DEBUG");
++static const u8 sText_MenuAutoWorker[] = _("AUTO WORKER");
+ 
+ static const struct MenuAction sStartMenuItems[] =
+ {
+@@ -215,6 +219,7 @@ static const struct MenuAction sStartMenuItems[] =
+     [MENU_ACTION_SAVE]            = {gText_MenuSave,    {.u8_void = StartMenuSaveCallback}},
+     [MENU_ACTION_OPTION]          = {gText_MenuOption,  {.u8_void = StartMenuOptionCallback}},
+     [MENU_ACTION_EXIT]            = {gText_MenuExit,    {.u8_void = StartMenuExitCallback}},
++    [MENU_ACTION_AUTO_WORKER]     = {sText_MenuAutoWorker, {.u8_void = StartMenuAutoWorkerCallback}},
+     [MENU_ACTION_RETIRE_SAFARI]   = {gText_MenuRetire,  {.u8_void = StartMenuSafariZoneRetireCallback}},
+     [MENU_ACTION_PLAYER_LINK]     = {gText_MenuPlayer,  {.u8_void = StartMenuLinkModePlayerNameCallback}},
+     [MENU_ACTION_REST_FRONTIER]   = {gText_MenuRest,    {.u8_void = StartMenuSaveCallback}},
+@@ -370,6 +375,7 @@ static void BuildNormalStartMenu(void)
+ 
+     AddStartMenuAction(MENU_ACTION_PLAYER);
+     AddStartMenuAction(MENU_ACTION_SAVE);
++    AddStartMenuAction(MENU_ACTION_AUTO_WORKER);
+     AddStartMenuAction(MENU_ACTION_OPTION);
+     AddStartMenuAction(MENU_ACTION_EXIT);
+ }
+@@ -733,6 +739,7 @@ static bool8 HandleStartMenuInput(void)
+         gMenuCallback = sStartMenuItems[sCurrentStartMenuActions[sStartMenuCursorPos]].func.u8_void;
+ 
+         if (gMenuCallback != StartMenuSaveCallback
++            && gMenuCallback != StartMenuAutoWorkerCallback
+             && gMenuCallback != StartMenuExitCallback
+             && gMenuCallback != StartMenuDebugCallback
+             && gMenuCallback != StartMenuSafariZoneRetireCallback
+@@ -876,6 +883,17 @@ static bool8 StartMenuOptionCallback(void)
+     return FALSE;
+ }
+ 
++static bool8 StartMenuAutoWorkerCallback(void)
++{
++    // Toggle and drop straight back to the field. Nothing here may save: the
++    // agent is structurally forbidden from touching the save file, which turns
++    // every possible bug from "ruined save" into "reset and lose the session".
++    AutoWorker_SetEnabled(!AutoWorker_IsEnabled());
++    PlaySE(AutoWorker_IsEnabled() ? SE_PC_LOGIN : SE_PC_OFF);
++    HideStartMenu();
++    return TRUE;
++}
++
+ static bool8 StartMenuExitCallback(void)
+ {
+     RemoveExtraStartMenuWindows();
