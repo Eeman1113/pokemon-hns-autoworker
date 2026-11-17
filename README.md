@@ -13,22 +13,33 @@ applied in your browser, and nothing is uploaded anywhere.
 
 ## Honest status
 
-This is an early build, and the gap between what is implemented and what was asked for
-matters more than a feature list.
+It plays the opening of the game by itself and then stops. That is the whole claim.
 
 | Capability | State |
 |---|---|
-| `AUTO WORKER` entry in the start menu under `SAVE` | **works** |
-| Battles played by the game's own AI | **works** |
-| Instant hand-back on **B** | **works** |
-| Stage detection — resume from any save | **works** |
-| Dialogue advance, patrol-to-encounter | **works** |
-| Cross-map travel | built, **not yet wired to movement** |
-| Finishing the game unattended | **no** |
+| `AUTO WORKER` in the start menu under `SAVE` | works |
+| Resumes from any save, including a fresh boot | works |
+| Cross-map routing — doors, warps, map connections | works |
+| Instant hand-back on **B** | works, measured |
+| Cannot touch your save file | works, measured |
+| Survives a white-out and carries on | works, measured |
+| Routes to a Pokémon Centre when hurt | works, measured |
+| Chooses battle moves by expected damage | works in wild battles |
+| **Beating a gym leader** | **unmeasured** |
+| Switching, items, catching, training | not implemented |
+| Finishing the game | no |
 
-Auto-battling and hand-off are real. Walking itself across Johto is not yet. Puzzle
-sections — Ice Path, the Rocket HQ password — are marked hand-back and always will be:
-an agent that silently flails is worse than one that stops and says so.
+**How far it gets:** a continuous unattended run reaches objective 11 of 45 — about
+the first hour, and zero of sixteen badges. Tested objective-by-objective it reaches
+many more targets, but reaching a gym leader is not beating one.
+
+**What is honestly unknown:** whether it wins gym battles. The save states built to
+measure that did not place the game where they claimed, so every gym result so far
+measured nothing. Treat gym performance as unknown rather than good or bad.
+
+All three former puzzle stopping points are solved. Ice Path needed no solution at
+all — measurement showed its ice does not slide in normal play, so it is an ordinary
+walk.
 
 **Back up your save before using this.**
 

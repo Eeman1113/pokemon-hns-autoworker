@@ -56,10 +56,15 @@
   <section class="win">
     <h2>What it does</h2>
     <dl>
-      <dt>Plays the battles properly</dt>
-      <dd>Battles are not scripted. The game already ships an AI capable of driving a
-          player-side battler, so Auto Worker points it at your side — real damage
-          calculation, switching, item use. It is the same code that runs your opponents.</dd>
+      <dt>Plays the battles itself</dt>
+      <dd>It picks moves by expected damage — power, type effectiveness, STAB and
+          accuracy — rather than hammering the first option. The obvious approach was to
+          point the game's own opponent AI at your side; that was tried and abandoned
+          because it hard-freezes the console, and because when it did run it played
+          <em>worse</em>: that AI assumes a full team it can switch and set up with,
+          which is losing play for one Pokémon that never switches. Measured against
+          button-mashing in wild battles: zero faints instead of one, and 21% fewer
+          frames per battle.</dd>
 
       <dt>Knows where it is in the story</dt>
       <dd>The whole route is pre-declared as an ordered table of objectives. On hand-off the
@@ -81,15 +86,42 @@
 
   <section class="win warn">
     <h2>Honest status</h2>
-    <p class="small">This is an early build. The menu entry, the battle hand-off, the input
-      layer and the stage detection are implemented and compile into the ROM. The
-      cross-map router is built from the game's own 4,451 warp connections but is
-      <strong>not yet wired to the movement layer</strong>, and the objective table covers
-      30 main-line steps of which 21 were derived from the game's scripts, 7 inferred and
-      2 unknown.</p>
-    <p class="small">So: auto-battling and hand-off work. Walking itself across Johto does
-      not yet. Puzzle sections — Ice Path, the Rocket HQ password — are marked hand-back
-      and always will be. Back up your save before trying it.</p>
+    <p class="small colw">It plays the opening of the game by itself and then stops.
+      That is the whole claim. Everything below is either measured or marked unmeasured.</p>
+
+    <table>
+      <tr><th>Works, with evidence</th><td>
+        Menu entry · stage detection (resumes from any save by reading its flags) ·
+        cross-map routing through doors, warps and map connections ·
+        hands control back on <kbd>B</kbd> within one frame ·
+        cannot touch your save file · survives a white-out and carries on ·
+        routes to a Pokémon Centre when hurt</td></tr>
+      <tr><th>Route data</th><td>45 main-line objectives — 41 derived from the game's
+        own scripts, 3 unknown — with 44/44 target coordinates verified against the
+        map layouts</td></tr>
+      <tr><th>Battles</th><td>Chooses moves by expected damage. Measured in wild
+        encounters: zero faints and 21% faster than button-mashing.
+        <strong>Gym leaders are unmeasured</strong> — see below</td></tr>
+      <tr><th>Puzzles</th><td>All three former stopping points solved. Ice Path needed
+        no solution at all: measurement showed its ice does not slide in normal play,
+        so it is an ordinary walk</td></tr>
+      <tr><th>Does not do</th><td>Finish the game. Switch Pokémon or use items in
+        battle. Catch or train anything</td></tr>
+    </table>
+
+    <p class="small colw"><strong>How far it actually gets:</strong> a continuous
+      unattended run reaches objective 11 of 45 — roughly the first hour, and zero of
+      the sixteen gym badges. Tested objective-by-objective it reaches considerably
+      more targets than that, but reaching a gym leader is not beating one, and the
+      two should not be conflated.</p>
+
+    <p class="small colw"><strong>What is honestly unknown:</strong> whether it can win
+      a gym battle. The test states built to measure that turned out not to place the
+      game where they claimed, so every gym result so far measured nothing. That is
+      being fixed; until it is, treat gym performance as unknown rather than good or
+      bad.</p>
+
+    <p class="small colw">Back up your save before using it.</p>
   </section>
 
   <footer>
