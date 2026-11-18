@@ -1,213 +1,288 @@
-diff --git a/src/battle_ai_main.c b/src/battle_ai_main.c
-index 2dbf728d..83f50ff1 100644
---- a/src/battle_ai_main.c
-+++ b/src/battle_ai_main.c
-@@ -1,4 +1,5 @@
- #include "global.h"
-+#include "auto_worker.h"
- #include "main.h"
- #include "malloc.h"
+diff --git a/include/aw_quests.h b/include/aw_quests.h
+index 3d57950e..6ba193d2 100644
+--- a/include/aw_quests.h
++++ b/include/aw_quests.h
+@@ -36,7 +36,7 @@ struct AwObjective
+     const u8 *name;
+ };
+ 
+-#define AW_NUM_OBJECTIVES 45
++#define AW_NUM_OBJECTIVES 47
+ extern const struct AwObjective gAwObjectives[AW_NUM_OBJECTIVES];
+ 
+ // Evaluating a condition is the table's own semantics, so it ships with the
+diff --git a/src/auto_worker.c b/src/auto_worker.c
+index 9aca33fb..391ed7f8 100644
+--- a/src/auto_worker.c
++++ b/src/auto_worker.c
+@@ -11,6 +11,9 @@
+ #include "auto_worker_nav.h"
+ #include "constants/map_groups.h"
+ #include "constants/maps.h"
++#include "string_util.h"
++#include "strings.h"
++#include "constants/characters.h"
+ #include "constants/battle.h"
  #include "battle.h"
-@@ -262,7 +263,7 @@ static u64 GetAiFlags(u16 trainerId, enum BattlerId battler)
+ #include "pokemon.h"
+@@ -169,6 +172,30 @@ void AutoWorker_Disable(void)
  
- void BattleAI_SetupFlags(void)
- {
--    if (IsAiVsAiBattle())
-+    if (IsAiVsAiBattle() || AutoWorker_IsAutoBattling())
-         gAiThinkingStruct->aiFlags[B_BATTLER_0] = GetAiFlags(gPartnerTrainerId, B_BATTLER_0);
-     else
-         gAiThinkingStruct->aiFlags[B_BATTLER_0] = 0; // player has no AI
-@@ -304,7 +305,7 @@ void BattleAI_SetupFlags(void)
-     {
-         gAiThinkingStruct->aiFlags[B_BATTLER_2] = GetAiFlags(gPartnerTrainerId, B_BATTLER_1);
-     }
--    else if (IsDoubleBattle() && IsAiVsAiBattle())
-+    else if (IsDoubleBattle() && (IsAiVsAiBattle() || AutoWorker_IsAutoBattling()))
-     {
-         gAiThinkingStruct->aiFlags[B_BATTLER_2] = gAiThinkingStruct->aiFlags[B_BATTLER_0];
-     }
-diff --git a/src/battle_controller_player_partner.c b/src/battle_controller_player_partner.c
-index e3c7b9eb..46f16909 100644
---- a/src/battle_controller_player_partner.c
-+++ b/src/battle_controller_player_partner.c
-@@ -1,4 +1,5 @@
- #include "global.h"
-+#include "auto_worker.h"
- #include "battle.h"
- #include "battle_ai_main.h"
- #include "battle_ai_switch.h"
-@@ -233,6 +234,15 @@ static void PlayerPartnerHandleDrawTrainerPic(enum BattlerId battler)
-         xPos = 90;
-         yPos = (8 - gTrainerBacksprites[trainerPicId].coordinates.size) * 4 + 80;
-     }
-+    else if (AutoWorker_IsAutoBattling())
-+    {
-+        // Driving the player's own battler, so draw the player -- not a
-+        // partner trainer, which is what this controller normally assumes.
-+        trainerPicId = gSaveBlock2Ptr->playerGender == FEMALE
-+                     ? TRAINER_BACK_PIC_PLAYER_FEMALE : TRAINER_BACK_PIC_PLAYER_MALE;
-+        xPos = 80;
-+        yPos = (8 - gTrainerBacksprites[trainerPicId].coordinates.size) * 4 + 80;
-+    }
-     else if (IsAiVsAiBattle())
-     {
-         trainerPicId = GetTrainerPicFromId(gPartnerTrainerId);
-@@ -322,7 +332,7 @@ static void PlayerPartnerHandleChoosePokemon(enum BattlerId battler)
-         chosenMonId = GetMostSuitableMonToSwitchInto(battler, SWITCH_AFTER_KO);
-         if (chosenMonId == PARTY_SIZE || !IsValidForBattle(&gPlayerParty[chosenMonId])) // just switch to the next mon
-         {
--            s32 firstId = (IsAiVsAiBattle()) ? 0 : (PARTY_SIZE / 2);
-+            s32 firstId = (IsAiVsAiBattle() || AutoWorker_IsAutoBattling()) ? 0 : (PARTY_SIZE / 2);
-             enum BattlerId battler1 = GetBattlerAtPosition(B_POSITION_PLAYER_LEFT);
-             enum BattlerId battler2 = IsDoubleBattle() ? GetBattlerAtPosition(B_POSITION_PLAYER_RIGHT) : battler1;
+ static void SnapshotDoneVar(const struct AwObjective *obj);
  
-@@ -358,6 +368,10 @@ static void PlayerPartnerHandleIntroTrainerBallThrow(enum BattlerId battler)
- 
-     if (gPartnerTrainerId > TRAINER_PARTNER(PARTNER_NONE))
-         trainerPal = gTrainerBacksprites[gBattlePartners[difficulty][gPartnerTrainerId - TRAINER_PARTNER(PARTNER_NONE)].trainerBackPic].palette.data;
-+    else if (AutoWorker_IsAutoBattling())
-+        trainerPal = gTrainerBacksprites[(gSaveBlock2Ptr->playerGender == FEMALE
-+                   ? TRAINER_BACK_PIC_PLAYER_FEMALE : TRAINER_BACK_PIC_PLAYER_MALE)
-+                   - TRAINER_PIC_FRONT_COUNT].palette.data;
-     else if (IsAiVsAiBattle())
-         trainerPal = gTrainerSprites[GetTrainerBackPicFromId(gPartnerTrainerId)].palette.data;
-     else
-diff --git a/src/battle_controllers.c b/src/battle_controllers.c
-index 2738a91b..9570000b 100644
---- a/src/battle_controllers.c
-+++ b/src/battle_controllers.c
-@@ -1,4 +1,5 @@
- #include "global.h"
-+#include "auto_worker.h"
- #include "battle.h"
- #include "battle_ai_main.h"
- #include "battle_ai_util.h"
-@@ -197,6 +198,11 @@ static void InitBtlControllersInternal(void)
-     bool32 isMulti = (gBattleTypeFlags & BATTLE_TYPE_MULTI);
-     bool32 isInGamePartner = (gBattleTypeFlags & BATTLE_TYPE_INGAME_PARTNER);
-     bool32 isAIvsAI = IsAiVsAiBattle();
-+    // Latched here, once, because the controller assignment below is the only
-+    // point at which the decision can be taken; toggling mid-battle must not
-+    // reassign controllers underneath a battle already in progress.
-+    AutoWorker_LatchForBattle();
-+    bool32 autoPlayer = AutoWorker_IsAutoBattling();
- 
-     if (!isLink || isMaster)
-         gBattleMainFunc = BeginBattleIntro;
-@@ -261,7 +267,7 @@ static void InitBtlControllersInternal(void)
-                 gBattlerControllerFuncs[GetBattlerPosition(B_BATTLER_0)] = IS_FRLG ? SetControllerToOakOrOldMan : SetControllerToWally;
-             else if (IS_FRLG && (gBattleTypeFlags & BATTLE_TYPE_FIRST_BATTLE))
-                 gBattlerControllerFuncs[gBattlerPositions[B_BATTLER_0]] = SetControllerToOakOrOldMan;
--            else if (isAIvsAI)
-+            else if (isAIvsAI || autoPlayer)
-                 gBattlerControllerFuncs[GetBattlerPosition(B_BATTLER_0)] = SetControllerToPlayerPartner;
-             else
-                 gBattlerControllerFuncs[GetBattlerPosition(B_BATTLER_0)] = SetControllerToPlayer;
-@@ -291,7 +297,7 @@ static void InitBtlControllersInternal(void)
-                     gBattlerControllerFuncs[GetBattlerPosition(B_BATTLER_2)] = SetControllerToRecordedPartner;
-             }
-             else if ((isInGamePartner && !isRecorded)
--                    || isAIvsAI)
-+                    || isAIvsAI || autoPlayer)
-             {
-                 gBattlerControllerFuncs[GetBattlerPosition(B_BATTLER_2)] = SetControllerToPlayerPartner;
-             }
-diff --git a/src/main.c b/src/main.c
-index 6b4434d6..827ac238 100644
---- a/src/main.c
-+++ b/src/main.c
-@@ -1,4 +1,5 @@
- #include "global.h"
-+#include "auto_worker.h"
- #include "crt0.h"
- #include "malloc.h"
- #include "link.h"
-@@ -137,6 +138,12 @@ void AgbMainLoop(void)
-     {
-         ReadKeys();
- 
-+        // Auto Worker writes only the cooked key fields, and must run after
-+        // ReadKeys() and before any callback so that every consumer -- field,
-+        // menu, battle, dialogue -- sees identical input. Anywhere else and
-+        // some consumers see synthetic keys while others do not.
-+        AutoWorker_Tick();
++// The rival's name, applied when the agent takes over a file early enough to
++// meet the naming step itself. Mashing A at a naming screen yields whatever the
++// cursor happens to sit on, so the name is written directly instead -- it is a
++// constant, not a decision, and the naming grid is fiddly input work for no
++// benefit.
++//
++// Only ONE field matters here. ExpandPlaceholder_RivalName (string_util.c:481)
++// reads gSaveBlock2Ptr->rivalName under IS_HNS; the SaveBlock1 copy is the FRLG
++// path and is dead in this hack, so writing it would be noise.
++static const u8 sAwRivalName[] = _("RAVANA");
 +
-         if (gSoftResetDisabled == FALSE
-          && JOY_HELD_RAW(A_BUTTON)
-          && JOY_HELD_RAW(B_START_SELECT) == B_START_SELECT)
++// Never overwrite a name a human chose. A new file is stamped "SILVER" by
++// new_game.c:308 rather than left empty, so "unset" means empty OR still that
++// default -- checking only for empty would silently rewrite part of someone's
++// save.
++static void ApplyRivalName(void)
++{
++    if (gSaveBlock2Ptr->rivalName[0] == EOS
++     || StringCompare(gSaveBlock2Ptr->rivalName, gText_ExpandedPlaceholder_Silver) == 0)
++    {
++        StringCopy(gSaveBlock2Ptr->rivalName, sAwRivalName);
++    }
++}
++
+ void AutoWorker_SetEnabled(bool32 enable)
+ {
+     if (enable)
+@@ -176,6 +203,7 @@ void AutoWorker_SetEnabled(bool32 enable)
+         const struct AwObjective *obj;
+ 
+         ResetRun();
++        ApplyRivalName();
+         AW_Nav_Reset();
+         sAW.navGoalSet = FALSE;
+         sAW.stage = AW_DetectStage();
+diff --git a/src/aw_quests.c b/src/aw_quests.c
+index 6d702700..4a1b7038 100644
+--- a/src/aw_quests.c
++++ b/src/aw_quests.c
+@@ -76,162 +76,172 @@ const struct AwObjective gAwObjectives[AW_NUM_OBJECTIVES] =
+           .done = { .kind = AW_COND_FLAG_SET, .id = FLAG_BADGE01_GET, .value = 0 },
+           .action = AW_FIGHT_TRAINER, .confidence = AW_DERIVED, .localId = 1,
+           .name = (const u8 *)"Gym 1 - Falkner" },  // VioletCity_Gym_EventScript_Falkner
+-    [13] = { .mapId = MAP_ILEX_FOREST_HNS, .x = 26, .y = 43,
++    [13] = { .mapId = MAP_VIOLET_CITY_HNS, .x = 22, .y = 37,
++          .pre  = { .kind = AW_COND_VAR_EQ, .id = VAR_VIOLET_CITY_STATE, .value = 3 },
++          .done = { .kind = AW_COND_VAR_GE, .id = VAR_VIOLET_CITY_STATE, .value = 4 },
++          .action = AW_WALK_TO, .confidence = AW_DERIVED, .localId = 0,
++          .name = (const u8 *)"Violet City: Elm's call" },  // coord_event VioletCity_EventScript_ElmCall_Trigger at (22,37) gated on STATE==3; clears FLAG_HIDE_VIOLET_CITY_AIDE and sets STATE 4 (VioletCity_hns/scripts.inc:184-186)
++    [14] = { .mapId = MAP_VIOLET_CITY_POKEMON_CENTER_HNS, .x = 9, .y = 4,
++          .pre  = { .kind = AW_COND_VAR_GE, .id = VAR_VIOLET_CITY_STATE, .value = 4 },
++          .done = { .kind = AW_COND_FLAG_SET, .id = FLAG_RECEIVED_TOGEPI_EGG, .value = 0 },
++          .action = AW_TALK_TO, .confidence = AW_DERIVED, .localId = 6,
++          .name = (const u8 *)"Violet City PC: Togepi Egg" },  // Elm's Aide at (9,4), hidden by FLAG_HIDE_VIOLET_CITY_AIDE until the call; VioletCity_PokemonCenter_EventScript_Aide_GiveEgg sets the flag (scripts.inc:58)
++    [15] = { .mapId = MAP_ILEX_FOREST_HNS, .x = 26, .y = 43,
+           .pre  = { .kind = AW_COND_VAR_EQ, .id = VAR_ILEX_FOREST_FARFETCHD, .value = 2 },
+           .done = { .kind = AW_COND_FLAG_SET, .id = FLAG_RECEIVED_HM_CUT, .value = 0 },
+           .action = AW_WALK_TO, .confidence = AW_DERIVED, .localId = 0,
+           .name = (const u8 *)"Ilex Forest: HM Cut" },  // coord_event IlexForest_EventScript_Trigger at (26,43)
+-    [14] = { .mapId = MAP_AZALEA_TOWN_GYM_HNS, .x = 11, .y = 6,
++    [16] = { .mapId = MAP_AZALEA_TOWN_GYM_HNS, .x = 11, .y = 6,
+           .pre  = { .kind = AW_COND_FLAG_SET, .id = FLAG_RECEIVED_HM_CUT, .value = 0 },
+           .done = { .kind = AW_COND_FLAG_SET, .id = FLAG_BADGE02_GET, .value = 0 },
+           .action = AW_FIGHT_TRAINER, .confidence = AW_DERIVED, .localId = 2,
+           .name = (const u8 *)"Gym 2 - Bugsy" },  // AzaleaTown_Gym_EventScript_Bugsy
+-    [15] = { .mapId = MAP_GOLDENROD_CITY_GYM_HNS, .x = 15, .y = 8,
++    [17] = { .mapId = MAP_GOLDENROD_CITY_GYM_HNS, .x = 15, .y = 8,
+           .pre  = { .kind = AW_COND_FLAG_SET, .id = FLAG_BADGE02_GET, .value = 0 },
+           .done = { .kind = AW_COND_FLAG_SET, .id = FLAG_BADGE03_GET, .value = 0 },
+           .action = AW_FIGHT_TRAINER, .confidence = AW_DERIVED, .localId = 4,
+           .name = (const u8 *)"Gym 3 - Whitney" },  // GoldenrodCity_Gym_EventScript_Whitney
+-    [16] = { .mapId = MAP_ECRUTEAK_CITY_THEATER_HNS, .x = 13, .y = 11,
++    [18] = { .mapId = MAP_ECRUTEAK_CITY_THEATER_HNS, .x = 13, .y = 11,
+           .pre  = { .kind = AW_COND_FLAG_SET, .id = FLAG_BADGE03_GET, .value = 0 },
+           .done = { .kind = AW_COND_FLAG_SET, .id = FLAG_RECEIVED_HM_SURF, .value = 0 },
+           .action = AW_TALK_TO, .confidence = AW_DERIVED, .localId = 7,
+           .name = (const u8 *)"Ecruteak Theater: HM Surf" },  // EcruteakCity_Theater_EventScript_SurfGuy
+-    [17] = { .mapId = MAP_ECRUTEAK_CITY_GYM_HNS, .x = 4, .y = 4,
++    [19] = { .mapId = MAP_ECRUTEAK_CITY_GYM_HNS, .x = 4, .y = 4,
+           .pre  = { .kind = AW_COND_FLAG_SET, .id = FLAG_BADGE03_GET, .value = 0 },
+           .done = { .kind = AW_COND_FLAG_SET, .id = FLAG_BADGE04_GET, .value = 0 },
+           .action = AW_FIGHT_TRAINER, .confidence = AW_DERIVED, .localId = 8,
+           .name = (const u8 *)"Gym 4 - Morty" },  // EcruteakCity_Gym_EventScript_Morty
+-    [18] = { .mapId = MAP_OLIVINE_CITY_CAFE_HNS, .x = 4, .y = 3,
++    [20] = { .mapId = MAP_OLIVINE_CITY_CAFE_HNS, .x = 4, .y = 3,
+           .pre  = { .kind = AW_COND_FLAG_SET, .id = FLAG_RECEIVED_HM_SURF, .value = 0 },
+           .done = { .kind = AW_COND_FLAG_SET, .id = FLAG_RECEIVED_HM_STRENGTH, .value = 0 },
+           .action = AW_TALK_TO, .confidence = AW_DERIVED, .localId = 2,
+           .name = (const u8 *)"Olivine Cafe: HM Strength" },  // OlivineCity_EventScript_SailorA:34 setflag FLAG_RECEIVED_HM_STRENGTH
+-    [19] = { .mapId = MAP_CIANWOOD_SHOP_HNS, .x = 8, .y = 7,
++    [21] = { .mapId = MAP_CIANWOOD_SHOP_HNS, .x = 8, .y = 7,
+           .pre  = { .kind = AW_COND_FLAG_SET, .id = FLAG_RECEIVED_HM_SURF, .value = 0 },
+           .done = { .kind = AW_COND_VAR_GE, .id = VAR_OLIVINE_CITY_STATE, .value = 4 },
+           .action = AW_TALK_TO, .confidence = AW_DERIVED, .localId = 1,
+           .name = (const u8 *)"Cianwood Shop: Secret Potion" },  // Pharmacist sets OLIVINE_CITY_STATE 4
+-    [20] = { .mapId = MAP_CIANWOOD_GYM_HNS, .x = 10, .y = 2,
++    [22] = { .mapId = MAP_CIANWOOD_GYM_HNS, .x = 10, .y = 2,
+           .pre  = { .kind = AW_COND_FLAG_SET, .id = FLAG_RECEIVED_HM_SURF, .value = 0 },
+           .done = { .kind = AW_COND_FLAG_SET, .id = FLAG_BADGE05_GET, .value = 0 },
+           .action = AW_FIGHT_TRAINER, .confidence = AW_DERIVED, .localId = 1,
+           .name = (const u8 *)"Gym 5 - Chuck" },  // CianwoodGym_EventScript_Chuck
+-    [21] = { .mapId = MAP_CIANWOOD_CITY_HNS, .x = 18, .y = 47,
++    [23] = { .mapId = MAP_CIANWOOD_CITY_HNS, .x = 18, .y = 47,
+           .pre  = { .kind = AW_COND_FLAG_SET, .id = FLAG_BADGE05_GET, .value = 0 },
+           .done = { .kind = AW_COND_HAS_ITEM, .id = ITEM_HM_FLY, .value = 1 },
+           .action = AW_TALK_TO, .confidence = AW_DERIVED, .localId = 6,
+           .name = (const u8 *)"Cianwood: HM Fly" },  // ChucksWife gives ITEM_HM_FLY and sets nothing; possession is the only evidence
+-    [22] = { .mapId = MAP_OLIVINE_CITY_GYM_HNS, .x = 8, .y = 4,
++    [24] = { .mapId = MAP_OLIVINE_CITY_GYM_HNS, .x = 8, .y = 4,
+           .pre  = { .kind = AW_COND_FLAG_SET, .id = FLAG_BADGE05_GET, .value = 0 },
+           .done = { .kind = AW_COND_FLAG_SET, .id = FLAG_BADGE06_GET, .value = 0 },
+           .action = AW_FIGHT_TRAINER, .confidence = AW_DERIVED, .localId = 1,
+           .name = (const u8 *)"Gym 6 - Jasmine" },  // OlivineCity_Gym_EventScript_Jasmine
+-    [23] = { .mapId = MAP_ROUTE36_HNS, .x = 46, .y = 20,
++    [25] = { .mapId = MAP_ROUTE36_HNS, .x = 46, .y = 20,
+           .pre  = { .kind = AW_COND_FLAG_SET, .id = FLAG_BADGE02_GET, .value = 0 },
+           .done = { .kind = AW_COND_FLAG_SET, .id = FLAG_RECEIVED_HM_ROCK_SMASH, .value = 0 },
+           .action = AW_TALK_TO, .confidence = AW_DERIVED, .localId = 3,
+           .name = (const u8 *)"Route 36: HM Rock Smash" },  // Route36_EventScript_RockSmashGuy2:22 setflag FLAG_RECEIVED_HM_ROCK_SMASH
+-    [24] = { .mapId = MAP_LAKE_OF_RAGE_HNS, .x = 32, .y = 28,
++    [26] = { .mapId = MAP_LAKE_OF_RAGE_HNS, .x = 32, .y = 28,
+           .pre  = { .kind = AW_COND_FLAG_SET, .id = FLAG_BADGE06_GET, .value = 0 },
+           .done = { .kind = AW_COND_VAR_GE, .id = VAR_MAHOGANY_TOWN_STATE, .value = 2 },
+           .action = AW_FIGHT_TRAINER, .confidence = AW_DERIVED, .localId = 8,
+           .name = (const u8 *)"Lake of Rage: Red Gyarados" },  // LakeOfRage_EventScript_Gyarados sets MAHOGANY_TOWN_STATE 2
+-    [25] = { .mapId = MAP_GOLDENROD_CITY_UNDERGROUND_STORAGE_HNS, .x = 13, .y = 8,
++    [27] = { .mapId = MAP_GOLDENROD_CITY_UNDERGROUND_STORAGE_HNS, .x = 13, .y = 8,
+           .pre  = { .kind = AW_COND_FLAG_SET, .id = FLAG_BADGE06_GET, .value = 0 },
+           .done = { .kind = AW_COND_HAS_ITEM, .id = ITEM_CARD_KEY, .value = 1 },
+           .action = AW_TALK_TO, .confidence = AW_DERIVED, .localId = 7,
+           .name = (const u8 *)"Goldenrod Underground: Card Key" },  // Director gives ITEM_CARD_KEY and sets nothing
+-    [26] = { .mapId = MAP_MAHOGANYTOWN_HNS, .x = 22, .y = 14,
++    [28] = { .mapId = MAP_MAHOGANYTOWN_HNS, .x = 22, .y = 14,
+           .pre  = { .kind = AW_COND_VAR_GE, .id = VAR_TRIGGER_ELM_ROCKET_CALL, .value = 1 },
+           .done = { .kind = AW_COND_VAR_GE, .id = VAR_GOLDENROD_CITY_STATE, .value = 6 },
+           .action = AW_WALK_TO, .confidence = AW_DERIVED, .localId = 0,
+           .name = (const u8 *)"Mahogany: Rocket hideout discovered" },  // map_script_2 VAR_TRIGGER_ELM_ROCKET_CALL,1 -> RocketTrigger:24 sets GOLDENROD_CITY_STATE,6. ON_FRAME_TABLE: fires on entering Mahogany. Sits between Whitney (3/4/5) and Petrel (7)
+-    [27] = { .mapId = MAP_GOLDENROD_CITY_RADIO_TOWER_5F_HNS, .x = 11, .y = 9,
++    [29] = { .mapId = MAP_GOLDENROD_CITY_RADIO_TOWER_5F_HNS, .x = 11, .y = 9,
+           .pre  = { .kind = AW_COND_FLAG_SET, .id = FLAG_BADGE06_GET, .value = 0 },
+           .done = { .kind = AW_COND_VAR_GE, .id = VAR_GOLDENROD_CITY_STATE, .value = 7 },
+           .action = AW_HAND_BACK, .confidence = AW_UNKNOWN, .localId = 0,
+           .name = (const u8 *)"Rocket HQ: password + trapdoors" },  // Petrel sets GOLDENROD_CITY_STATE 7; still HAND_BACK, but now detectable when the human finishes it
+-    [28] = { .mapId = MAP_MAHOGANY_TOWN_GYM_HNS, .x = 12, .y = 4,
++    [30] = { .mapId = MAP_MAHOGANY_TOWN_GYM_HNS, .x = 12, .y = 4,
+           .pre  = { .kind = AW_COND_FLAG_SET, .id = FLAG_BADGE06_GET, .value = 0 },
+           .done = { .kind = AW_COND_FLAG_SET, .id = FLAG_BADGE07_GET, .value = 0 },
+           .action = AW_FIGHT_TRAINER, .confidence = AW_DERIVED, .localId = 6,
+           .name = (const u8 *)"Gym 7 - Pryce" },  // MahoganyTown_Gym_EventScript_Pryce
+-    [29] = { .mapId = MAP_ICE_PATH_1F_HNS, .x = 49, .y = 29,
++    [31] = { .mapId = MAP_ICE_PATH_1F_HNS, .x = 49, .y = 29,
+           .pre  = { .kind = AW_COND_FLAG_SET, .id = FLAG_BADGE07_GET, .value = 0 },
+           .done = { .kind = AW_COND_FLAG_SET, .id = FLAG_VISITED_BLACKTHORN_CITY, .value = 0 },
+           .action = AW_HAND_BACK, .confidence = AW_UNKNOWN, .localId = 0,
+           .name = (const u8 *)"Ice Path: sliding boulder puzzle" },  // no Ice Path floor records the puzzle; BlackthornCity_EventScript_CityEnter:23 is the far-side arrival signal. B1F/B2F carry 4 PUSHABLE_BOULDER objects each -- a real Strength puzzle, so the push sequence stays a hand-back
+-    [30] = { .mapId = MAP_DRAGONS_DEN_SHRINE_HNS, .x = 6, .y = 15,
++    [32] = { .mapId = MAP_DRAGONS_DEN_SHRINE_HNS, .x = 6, .y = 15,
+           .pre  = { .kind = AW_COND_VAR_EQ, .id = VAR_BLACKTHORN_CITY_STATE, .value = 2 },
+           .done = { .kind = AW_COND_FLAG_SET, .id = FLAG_BADGE08_GET, .value = 0 },
+           .action = AW_HAND_BACK, .confidence = AW_UNKNOWN, .localId = 0,
+           .name = (const u8 *)"Dragon's Den: Elder quiz (5 questions)" },  // coord trigger (6,15); answers derived, see report
+-    [31] = { .mapId = MAP_PEWTER_CITY_GYM_HNS, .x = 6, .y = 5,
++    [33] = { .mapId = MAP_PEWTER_CITY_GYM_HNS, .x = 6, .y = 5,
+           .pre  = { .kind = AW_COND_FLAG_SET, .id = FLAG_BADGE08_GET, .value = 0 },
+           .done = { .kind = AW_COND_FLAG_SET, .id = FLAG_BADGE09_GET, .value = 0 },
+           .action = AW_FIGHT_TRAINER, .confidence = AW_DERIVED, .localId = 3,
+           .name = (const u8 *)"Gym 9 - Brock (Kanto)" },  // Kanto begins
+-    [32] = { .mapId = MAP_CERULEAN_CITY_GYM_HNS, .x = 7, .y = 6,
++    [34] = { .mapId = MAP_CERULEAN_CITY_GYM_HNS, .x = 7, .y = 6,
+           .pre  = { .kind = AW_COND_FLAG_SET, .id = FLAG_BADGE09_GET, .value = 0 },
+           .done = { .kind = AW_COND_FLAG_SET, .id = FLAG_BADGE10_GET, .value = 0 },
+           .action = AW_FIGHT_TRAINER, .confidence = AW_DERIVED, .localId = 1,
+           .name = (const u8 *)"Gym 10 - Misty" },  // CeruleanCity_Gym_EventScript_Misty:191 setflag FLAG_BADGE10_GET
+-    [33] = { .mapId = MAP_VERMILION_CITY_GYM_HNS, .x = 5, .y = 2,
++    [35] = { .mapId = MAP_VERMILION_CITY_GYM_HNS, .x = 5, .y = 2,
+           .pre  = { .kind = AW_COND_FLAG_SET, .id = FLAG_BADGE10_GET, .value = 0 },
+           .done = { .kind = AW_COND_FLAG_SET, .id = FLAG_BADGE11_GET, .value = 0 },
+           .action = AW_FIGHT_TRAINER, .confidence = AW_DERIVED, .localId = 1,
+           .name = (const u8 *)"Gym 11 - Lt. Surge" },  // VermilionCity_Gym_EventScript_Surge:261 setflag FLAG_BADGE11_GET
+-    [34] = { .mapId = MAP_CELADON_CITY_GYM_HNS, .x = 6, .y = 4,
++    [36] = { .mapId = MAP_CELADON_CITY_GYM_HNS, .x = 6, .y = 4,
+           .pre  = { .kind = AW_COND_FLAG_SET, .id = FLAG_BADGE11_GET, .value = 0 },
+           .done = { .kind = AW_COND_FLAG_SET, .id = FLAG_BADGE12_GET, .value = 0 },
+           .action = AW_FIGHT_TRAINER, .confidence = AW_DERIVED, .localId = 1,
+           .name = (const u8 *)"Gym 12 - Erika" },  // CeladonCity_Gym_EventScript_Erika:17 setflag FLAG_BADGE12_GET
+-    [35] = { .mapId = MAP_SAFFRON_CITY_GYM_HNS, .x = 14, .y = 11,
++    [37] = { .mapId = MAP_SAFFRON_CITY_GYM_HNS, .x = 14, .y = 11,
+           .pre  = { .kind = AW_COND_FLAG_SET, .id = FLAG_BADGE12_GET, .value = 0 },
+           .done = { .kind = AW_COND_FLAG_SET, .id = FLAG_BADGE13_GET, .value = 0 },
+           .action = AW_FIGHT_TRAINER, .confidence = AW_DERIVED, .localId = 5,
+           .name = (const u8 *)"Gym 13 - Sabrina" },  // SaffronCity_Gym_EventScript_Sabrina:46 setflag FLAG_BADGE13_GET
+-    [36] = { .mapId = MAP_FUCHSIA_CITY_GYM_HNS, .x = 2, .y = 11,
++    [38] = { .mapId = MAP_FUCHSIA_CITY_GYM_HNS, .x = 2, .y = 11,
+           .pre  = { .kind = AW_COND_FLAG_SET, .id = FLAG_BADGE13_GET, .value = 0 },
+           .done = { .kind = AW_COND_FLAG_SET, .id = FLAG_BADGE14_GET, .value = 0 },
+           .action = AW_FIGHT_TRAINER, .confidence = AW_DERIVED, .localId = 5,
+           .name = (const u8 *)"Gym 14 - Janine" },  // FuchsiaCity_Gym_EventScript_Janine:56 setflag FLAG_BADGE14_GET
+-    [37] = { .mapId = MAP_SEAFOAM_ISLANDS_GYM_HNS, .x = 18, .y = 10,
++    [39] = { .mapId = MAP_SEAFOAM_ISLANDS_GYM_HNS, .x = 18, .y = 10,
+           .pre  = { .kind = AW_COND_FLAG_SET, .id = FLAG_BADGE14_GET, .value = 0 },
+           .done = { .kind = AW_COND_FLAG_SET, .id = FLAG_BADGE15_GET, .value = 0 },
+           .action = AW_FIGHT_TRAINER, .confidence = AW_DERIVED, .localId = 1,
+           .name = (const u8 *)"Gym 15 - Blaine" },  // SeafoamIslands_Gym_EventScript_Blaine:21 setflag FLAG_BADGE15_GET
+-    [38] = { .mapId = MAP_VIRIDIAN_CITY_GYM_HNS, .x = 5, .y = 2,
++    [40] = { .mapId = MAP_VIRIDIAN_CITY_GYM_HNS, .x = 5, .y = 2,
+           .pre  = { .kind = AW_COND_FLAG_SET, .id = FLAG_BADGE15_GET, .value = 0 },
+           .done = { .kind = AW_COND_FLAG_SET, .id = FLAG_BADGE16_GET, .value = 0 },
+           .action = AW_FIGHT_TRAINER, .confidence = AW_DERIVED, .localId = 2,
+           .name = (const u8 *)"Gym 16 - Blue" },  // ViridianCity_Gym_EventScript_Blue:19 setflag FLAG_BADGE16_GET
+-    [39] = { .mapId = MAP_VICTORY_ROAD_KANTO_1F_HNS, .x = 28, .y = 7,
++    [41] = { .mapId = MAP_VICTORY_ROAD_KANTO_1F_HNS, .x = 28, .y = 7,
+           .pre  = { .kind = AW_COND_FLAG_SET, .id = FLAG_BADGE16_GET, .value = 0 },
+           .done = { .kind = AW_COND_VAR_GE, .id = VAR_ROUTE27_STATE, .value = 3 },
+           .action = AW_WALK_TO, .confidence = AW_DERIVED, .localId = 0,
+           .name = (const u8 *)"Victory Road: reach the far side" },  // coord_event VictoryRoadKanto_1F_Trigger at (28,7) gated on ROUTE27_STATE==2, sets 3 (:38). The old (23,16) target was an item ball
+-    [40] = { .mapId = MAP_POKEMON_LEAGUE_WILLS_ROOM_HNS, .x = 6, .y = 6,
++    [42] = { .mapId = MAP_POKEMON_LEAGUE_WILLS_ROOM_HNS, .x = 6, .y = 6,
+           .pre  = { .kind = AW_COND_FLAG_SET, .id = FLAG_BADGE16_GET, .value = 0 },
+           .done = { .kind = AW_COND_VAR_GE, .id = VAR_LEAGUE_STATE, .value = 2 },
+           .action = AW_FIGHT_TRAINER, .confidence = AW_DERIVED, .localId = 1,
+           .name = (const u8 *)"Elite Four - Will" },  // WillOnDefeat:97 setvar VAR_LEAGUE_STATE, 2
+-    [41] = { .mapId = MAP_POKEMON_LEAGUE_KOGAS_ROOM_HNS, .x = 6, .y = 6,
++    [43] = { .mapId = MAP_POKEMON_LEAGUE_KOGAS_ROOM_HNS, .x = 6, .y = 6,
+           .pre  = { .kind = AW_COND_NONE, .id = 0, .value = 0 },
+           .done = { .kind = AW_COND_VAR_GE, .id = VAR_LEAGUE_STATE, .value = 3 },
+           .action = AW_FIGHT_TRAINER, .confidence = AW_DERIVED, .localId = 1,
+           .name = (const u8 *)"Elite Four - Koga" },  // KogaOnDefeat:55 setvar VAR_LEAGUE_STATE, 3
+-    [42] = { .mapId = MAP_POKEMON_LEAGUE_BRUNOS_ROOM_HNS, .x = 6, .y = 6,
++    [44] = { .mapId = MAP_POKEMON_LEAGUE_BRUNOS_ROOM_HNS, .x = 6, .y = 6,
+           .pre  = { .kind = AW_COND_NONE, .id = 0, .value = 0 },
+           .done = { .kind = AW_COND_VAR_GE, .id = VAR_LEAGUE_STATE, .value = 4 },
+           .action = AW_FIGHT_TRAINER, .confidence = AW_DERIVED, .localId = 1,
+           .name = (const u8 *)"Elite Four - Bruno" },  // BrunoOnDefeat:55 setvar VAR_LEAGUE_STATE, 4
+-    [43] = { .mapId = MAP_POKEMON_LEAGUE_KARENS_ROOM_HNS, .x = 6, .y = 6,
++    [45] = { .mapId = MAP_POKEMON_LEAGUE_KARENS_ROOM_HNS, .x = 6, .y = 6,
+           .pre  = { .kind = AW_COND_NONE, .id = 0, .value = 0 },
+           .done = { .kind = AW_COND_VAR_GE, .id = VAR_LEAGUE_STATE, .value = 5 },
+           .action = AW_FIGHT_TRAINER, .confidence = AW_DERIVED, .localId = 1,
+           .name = (const u8 *)"Elite Four - Karen" },  // KarenOnDefeat:55 setvar VAR_LEAGUE_STATE, 5
+-    [44] = { .mapId = MAP_POKEMON_LEAGUE_CHAMPIONS_ROOM_HNS, .x = 6, .y = 8,
++    [46] = { .mapId = MAP_POKEMON_LEAGUE_CHAMPIONS_ROOM_HNS, .x = 6, .y = 8,
+           .pre  = { .kind = AW_COND_NONE, .id = 0, .value = 0 },
+           .done = { .kind = AW_COND_VAR_GE, .id = VAR_LEAGUE_STATE, .value = 6 },
+           .action = AW_FIGHT_TRAINER, .confidence = AW_DERIVED, .localId = 1,
 diff --git a/src/start_menu.c b/src/start_menu.c
-index 144c2d2a..f989b317 100644
+index f989b317..d8aa72c0 100644
 --- a/src/start_menu.c
 +++ b/src/start_menu.c
-@@ -1,4 +1,5 @@
- #include "global.h"
-+#include "auto_worker.h"
- #include "config/save.h"
- #include "battle_pike.h"
- #include "battle_pyramid.h"
-@@ -65,6 +66,7 @@ enum
-     MENU_ACTION_SAVE,
-     MENU_ACTION_OPTION,
-     MENU_ACTION_EXIT,
-+    MENU_ACTION_AUTO_WORKER,
-     MENU_ACTION_RETIRE_SAFARI,
-     MENU_ACTION_PLAYER_LINK,
-     MENU_ACTION_REST_FRONTIER,
-@@ -110,6 +112,7 @@ static bool8 StartMenuPlayerNameCallback(void);
- static bool8 StartMenuSaveCallback(void);
- static bool8 StartMenuOptionCallback(void);
- static bool8 StartMenuExitCallback(void);
-+static bool8 StartMenuAutoWorkerCallback(void);
- static bool8 StartMenuSafariZoneRetireCallback(void);
- static bool8 StartMenuLinkModePlayerNameCallback(void);
- static bool8 StartMenuBattlePyramidRetireCallback(void);
-@@ -204,6 +207,7 @@ static const struct WindowTemplate sWindowTemplate_PyramidPeak = {
+@@ -207,7 +207,7 @@ static const struct WindowTemplate sWindowTemplate_PyramidPeak = {
  };
  
  static const u8 sText_MenuDebug[] = _("DEBUG");
-+static const u8 sText_MenuAutoWorker[] = _("AUTO WORKER");
+-static const u8 sText_MenuAutoWorker[] = _("AUTO WORKER");
++static const u8 sText_MenuAutoWorker[] = _("AUTOASH");
  
  static const struct MenuAction sStartMenuItems[] =
  {
-@@ -215,6 +219,7 @@ static const struct MenuAction sStartMenuItems[] =
-     [MENU_ACTION_SAVE]            = {gText_MenuSave,    {.u8_void = StartMenuSaveCallback}},
-     [MENU_ACTION_OPTION]          = {gText_MenuOption,  {.u8_void = StartMenuOptionCallback}},
-     [MENU_ACTION_EXIT]            = {gText_MenuExit,    {.u8_void = StartMenuExitCallback}},
-+    [MENU_ACTION_AUTO_WORKER]     = {sText_MenuAutoWorker, {.u8_void = StartMenuAutoWorkerCallback}},
-     [MENU_ACTION_RETIRE_SAFARI]   = {gText_MenuRetire,  {.u8_void = StartMenuSafariZoneRetireCallback}},
-     [MENU_ACTION_PLAYER_LINK]     = {gText_MenuPlayer,  {.u8_void = StartMenuLinkModePlayerNameCallback}},
-     [MENU_ACTION_REST_FRONTIER]   = {gText_MenuRest,    {.u8_void = StartMenuSaveCallback}},
-@@ -370,6 +375,7 @@ static void BuildNormalStartMenu(void)
- 
-     AddStartMenuAction(MENU_ACTION_PLAYER);
-     AddStartMenuAction(MENU_ACTION_SAVE);
-+    AddStartMenuAction(MENU_ACTION_AUTO_WORKER);
-     AddStartMenuAction(MENU_ACTION_OPTION);
-     AddStartMenuAction(MENU_ACTION_EXIT);
- }
-@@ -733,6 +739,7 @@ static bool8 HandleStartMenuInput(void)
-         gMenuCallback = sStartMenuItems[sCurrentStartMenuActions[sStartMenuCursorPos]].func.u8_void;
- 
-         if (gMenuCallback != StartMenuSaveCallback
-+            && gMenuCallback != StartMenuAutoWorkerCallback
-             && gMenuCallback != StartMenuExitCallback
-             && gMenuCallback != StartMenuDebugCallback
-             && gMenuCallback != StartMenuSafariZoneRetireCallback
-@@ -876,6 +883,17 @@ static bool8 StartMenuOptionCallback(void)
-     return FALSE;
- }
- 
-+static bool8 StartMenuAutoWorkerCallback(void)
-+{
-+    // Toggle and drop straight back to the field. Nothing here may save: the
-+    // agent is structurally forbidden from touching the save file, which turns
-+    // every possible bug from "ruined save" into "reset and lose the session".
-+    AutoWorker_SetEnabled(!AutoWorker_IsEnabled());
-+    PlaySE(AutoWorker_IsEnabled() ? SE_PC_LOGIN : SE_PC_OFF);
-+    HideStartMenu();
-+    return TRUE;
-+}
-+
- static bool8 StartMenuExitCallback(void)
- {
-     RemoveExtraStartMenuWindows();

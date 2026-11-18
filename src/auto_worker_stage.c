@@ -26,9 +26,12 @@ u16 AW_DetectStage(void)
 
     for (i = 0; i < AW_NUM_OBJECTIVES; i++)
     {
-        u16 done = gAwObjectives[i].doneFlag;
-
-        if (done != 0 && FlagGet(done) == TRUE)
+        // A condition of kind AW_COND_NONE can never be *proven* true, so an
+        // objective without a completion test never advances the resume point.
+        // That is deliberate: replaying an idempotent step is safe, whereas
+        // assuming an untestable step was finished is not.
+        if (gAwObjectives[i].done.kind != AW_COND_NONE
+         && AW_EvalCond(&gAwObjectives[i].done))
             resume = i + 1;     // proven past this one
     }
 
@@ -51,7 +54,7 @@ const struct AwObjective *AW_CurrentObjective(void)
 // sooner -- never "refuse to try".
 bool32 AW_PreconditionHolds(const struct AwObjective *o)
 {
-    if (o == NULL || o->preFlag == 0)
+    if (o == NULL || o->pre.kind == AW_COND_NONE)
         return TRUE;
-    return FlagGet(o->preFlag) == TRUE;
+    return AW_EvalCond(&o->pre);
 }

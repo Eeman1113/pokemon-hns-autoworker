@@ -26,6 +26,7 @@ void AutoWorker_Disable(void);
 // stops the agent but lets the AI finish the turn sequence it already owns.
 void AutoWorker_LatchForBattle(void);
 bool32 AutoWorker_IsAutoBattling(void);
+extern u8 gAWBattleAIOff;
 
 struct AwObjective;
 u16 AW_DetectStage(void);

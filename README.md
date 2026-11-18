@@ -15,31 +15,34 @@ applied in your browser, and nothing is uploaded anywhere.
 
 It plays the opening of the game by itself and then stops. That is the whole claim.
 
+**Measured on the current build: objective 15 of 47, 1 of 16 gym badges** — roughly
+the first 90 minutes of a ~30-hour game. From a fresh file it leaves home, takes the
+starter, runs Elm's errand, fights the rival, crosses to Violet City, climbs Sprout
+Tower, **beats Falkner**, collects the Togepi Egg, and catches a Pokémon of its own.
+
+Progress is read from the game's own `FlagGet`, not from scanning memory — eight
+hand-derived address reads in this project returned confident wrong numbers, so
+anything not computed by the ROM itself is treated as unverified.
+
 | Capability | State |
 |---|---|
-| `AUTO WORKER` in the start menu under `SAVE` | works |
+| `AUTOASH` in the start menu under `SAVE` | works |
 | Resumes from any save, including a fresh boot | works |
-| Cross-map routing — doors, warps, map connections | works |
+| Cross-map routing — doors, warps, connections, region-aware | works |
 | Instant hand-back on **B** | works, measured |
 | Cannot touch your save file | works, measured |
 | Survives a white-out and carries on | works, measured |
 | Routes to a Pokémon Centre when hurt | works, measured |
-| Chooses battle moves by expected damage | works in wild battles |
-| **Beating a gym leader** | **unmeasured** |
-| Switching, items, catching, training | not implemented |
+| Battle moves chosen by expected damage | works; beat Falkner |
+| Catching, with weaken-not-kill and nicknames | works; caught one in a live run |
+| Switching, items, level-gated training | not implemented |
+| Beating gyms 2–16, Elite Four | unmeasured |
 | Finishing the game | no |
 
-**How far it gets:** a continuous unattended run reaches objective 11 of 45 — about
-the first hour, and zero of sixteen badges. Tested objective-by-objective it reaches
-many more targets, but reaching a gym leader is not beating one.
-
-**What is honestly unknown:** whether it wins gym battles. The save states built to
-measure that did not place the game where they claimed, so every gym result so far
-measured nothing. Treat gym performance as unknown rather than good or bad.
-
-All three former puzzle stopping points are solved. Ice Path needed no solution at
-all — measurement showed its ice does not slide in normal play, so it is an ordinary
-walk.
+**What stops it.** Field moves are gated on **badges, not on owning the HM** — this
+hack puts Surf behind badge 4 — so half the map is unreachable until the agent wins
+more gyms. Teaching HMs, shopping for Poké Balls, and the remaining progression gates
+are built but not yet merged (`notes/GATES.md`).
 
 **Back up your save before using this.**
 
